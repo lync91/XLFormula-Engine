@@ -72,6 +72,7 @@ pub enum Formula {
     Operation(Expression),
     Value(Value),
     Reference(String),
+    RangeReference(String),
     Iterator(Vec<Formula>),
 }
 
@@ -80,4 +81,11 @@ pub enum Formula {
 pub struct Expression {
     pub op: Operator,
     pub values: Vec<Formula>,
+}
+
+/// Enum định nghĩa Reference
+#[derive(Debug, Clone)]
+pub enum Reference {
+    CellReference(String),
+    RangeReference(String),
 }

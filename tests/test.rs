@@ -1,7 +1,10 @@
 extern crate xlformula_engine;
+use std::string;
+
 use xlformula_engine::calculate;
 use xlformula_engine::parse_formula;
 use xlformula_engine::types;
+use xlformula_engine::types::Reference;
 use xlformula_engine::NoCustomFunction;
 use xlformula_engine::NoReference;
 
@@ -24,7 +27,7 @@ fn evaluate_formula_string(s: &str) -> String {
 
 fn evaluate_formula_string_with_reference(
     s: &str,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> String {
     let formula = parse_formula::parse_string_to_formula(s, None::<NoCustomFunction>);
     let result = calculate::calculate_formula(formula, f);
@@ -33,7 +36,7 @@ fn evaluate_formula_string_with_reference(
 
 fn evaluate_formula_number_with_reference(
     s: &str,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> f32 {
     let formula = parse_formula::parse_string_to_formula(s, None::<NoCustomFunction>);
     let result = calculate::calculate_formula(formula, f);
@@ -42,7 +45,7 @@ fn evaluate_formula_number_with_reference(
 
 fn evaluate_formula_number_with_reference_no_conversion(
     s: &str,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     let formula = parse_formula::parse_string_to_formula(s, None::<NoCustomFunction>);
     let result = calculate::calculate_formula(formula, f);
@@ -52,7 +55,7 @@ fn evaluate_formula_number_with_reference_no_conversion(
 
 fn evaluate_formula_boolean_with_reference(
     s: &str,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> String {
     let formula = parse_formula::parse_string_to_formula(s, None::<NoCustomFunction>);
     let result = calculate::calculate_formula(formula, f);
@@ -61,7 +64,7 @@ fn evaluate_formula_boolean_with_reference(
 
 fn evaluate_formula_date_with_reference(
     s: &str,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> String {
     let formula = parse_formula::parse_string_to_formula(s, None::<NoCustomFunction>);
     let result = calculate::calculate_formula(formula, f);
@@ -71,7 +74,7 @@ fn evaluate_formula_date_with_reference(
 fn evaluate_formula_number_with_custom_function(
     s: &str,
     custom_function: Option<&impl Fn(String, Vec<f32>) -> types::Value>,
-    //reference: Option<&impl Fn(String) -> types::Value>,
+    //reference: Option<&impl Fn(Reference) -> types::Value>,
 ) -> f32 {
     let formula = parse_formula::parse_string_to_formula(s, custom_function);
     let result = calculate::calculate_formula(formula, None::<NoReference>);
@@ -81,7 +84,7 @@ fn evaluate_formula_number_with_custom_function(
 fn evaluate_formula_string_with_custom_function(
     s: &str,
     custom_function: Option<&impl Fn(String, Vec<f32>) -> types::Value>,
-    //reference: Option<&impl Fn(String) -> types::Value>,
+    //reference: Option<&impl Fn(Reference) -> types::Value>,
 ) -> String {
     let formula = parse_formula::parse_string_to_formula(s, custom_function);
     let result = calculate::calculate_formula(formula, None::<NoReference>);
@@ -91,7 +94,7 @@ fn evaluate_formula_string_with_custom_function(
 fn _evaluate_formula_number_with_custom_function_and_reference(
     s: &str,
     custom_function: Option<&impl Fn(String, Vec<f32>) -> types::Value>,
-    reference: Option<&impl Fn(String) -> types::Value>,
+    reference: Option<&impl Fn(Reference) -> types::Value>,
 ) -> f32 {
     let formula = parse_formula::parse_string_to_formula(s, custom_function);
     let result = calculate::calculate_formula(formula, reference);
@@ -504,26 +507,34 @@ fn it_evaluate_boolean_not() {
 }
 
 //////////////////////////// References //////////////////////////////////
+
+
 #[test]
 fn it_evaluate_references() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(1.0),
-        "B" => types::Value::Number(2.0),
-        "C" => types::Value::Number(3.0),
-        "fix_rate" => types::Value::Number(10.0),
-        "input." => types::Value::Number(2.0),
-        "D" => types::Value::Number(1.0),
-        "F" => types::Value::Text("=D+1".to_string()),
-        "G" => types::Value::Text("=F+1+D+1".to_string()),
-        "Test" => {
-            let mut vec = Vec::new();
-            vec.push(types::Value::Number(100.0));
-            vec.push(types::Value::Number(200.0));
-            vec.push(types::Value::Number(300.0));
-            types::Value::Iterator(vec)
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(1.0),
+            "B" => types::Value::Number(2.0),
+            "C" => types::Value::Number(3.0),
+            "fix_rate" => types::Value::Number(10.0),
+            "input." => types::Value::Number(2.0),
+            "D" => types::Value::Number(1.0),
+            "F" => types::Value::Text("=D+1".to_string()),
+            "G" => types::Value::Text("=F+1+D+1".to_string()),
+            "Test" => {
+                let mut vec = Vec::new();
+                vec.push(types::Value::Number(100.0));
+                vec.push(types::Value::Number(200.0));
+                vec.push(types::Value::Number(300.0));
+                types::Value::Iterator(vec)
+            }
+    
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => match string.as_str() {
+            "A1:A2" => types::Value::Number(1.0),
+            _ => types::Value::Error(types::Error::Value),
         }
-
-        _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
         evaluate_formula_number_with_reference(&"=A+B", Some(&data_function)),
@@ -553,14 +564,54 @@ fn it_evaluate_references() {
         evaluate_formula_number_with_reference(&"=AVERAGE(Test)", Some(&data_function)),
         200.0,
     );
+    // assert_eq!(
+    //     evaluate_formula_number_with_reference(&"=SUM(A1:B1)", Some(&data_function)),
+    //     5.0,
+    // );
 }
+
+//println!("ref is ___ {:?}", s);
+
+#[test]
+fn it_evaluate_range_references() {
+    let data_function = |s: Reference| {
+        println!("ref is ___ {:?}", s);
+        match s {
+            Reference::CellReference(ref string) => match string.as_str() {
+                
+        
+                _ => types::Value::Error(types::Error::Value),
+            },
+            Reference::RangeReference(ref string) => match string.as_str() {
+                "A1:B1" => {
+                    let mut vec = Vec::new();
+                    vec.push(types::Value::Number(100.0));
+                    vec.push(types::Value::Number(200.0));
+                    types::Value::Iterator(vec)
+                },
+                _ => types::Value::Error(types::Error::Value),
+            }
+        }
+    };
+    assert_eq!(
+        evaluate_formula_number_with_reference(&"=SUM(A1:B1)", Some(&data_function)),
+        300.0,
+    );
+}
+
 
 #[test]
 fn it_evaluate_references_other_formulas() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Text("=1+B".to_string()),
-        "B" => types::Value::Number(3.0),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Text("=1+B".to_string()),
+            "B" => types::Value::Number(3.0),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => match string.as_str() {
+            "A1:A2" => types::Value::Number(1.0),
+            _ => types::Value::Error(types::Error::Value),
+        }
     };
     assert_eq!(
         evaluate_formula_number_with_reference(&"=A+B", Some(&data_function)),
@@ -570,10 +621,16 @@ fn it_evaluate_references_other_formulas() {
 
 #[test]
 fn it_evaluate_references_boolean_formulas() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Boolean(types::Boolean::True),
-        "B" => types::Value::Boolean(types::Boolean::False),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Boolean(types::Boolean::True),
+            "B" => types::Value::Boolean(types::Boolean::False),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => match string.as_str() {
+            "A1:A2" => types::Value::Number(1.0),
+            _ => types::Value::Error(types::Error::Value),
+        }
     };
     assert_eq!(
         evaluate_formula_boolean_with_reference(&"=AND(A,B)", Some(&data_function)),
@@ -583,10 +640,16 @@ fn it_evaluate_references_boolean_formulas() {
 
 #[test]
 fn it_evaluate_references_error_value_formulas() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Boolean(types::Boolean::True),
-        "B" => types::Value::Error(types::Error::Value), //types::Value::Boolean(types::Boolean::False),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Boolean(types::Boolean::True),
+            "B" => types::Value::Error(types::Error::Value), //types::Value::Boolean(types::Boolean::False),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => match string.as_str() {
+            "A1:A2" => types::Value::Number(1.0),
+            _ => types::Value::Error(types::Error::Value),
+        }
     };
     assert_eq!(
         evaluate_formula_boolean_with_reference(&"=AND(A,B)", Some(&data_function)),
@@ -596,10 +659,16 @@ fn it_evaluate_references_error_value_formulas() {
 
 #[test]
 fn it_evaluate_references_with_dot() {
-    let data_function = |s: String| match s.as_str() {
-        "A.B" => types::Value::Number(1.0),
-        "B.C" => types::Value::Number(2.0),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A.B" => types::Value::Number(1.0),
+            "B.C" => types::Value::Number(2.0),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => match string.as_str() {
+            "A1:A2" => types::Value::Number(1.0),
+            _ => types::Value::Error(types::Error::Value),
+        }
     };
     assert_eq!(
         evaluate_formula_number_with_reference(&"=A.B+B.C", Some(&data_function)),
@@ -637,10 +706,17 @@ fn it_evaluate_multiple_iterators_and_scalars() {
 
 #[test]
 fn it_evaluate_references_iterator() {
-    let data_function = |s: String| match s.as_str() {
-        "A.B" => types::Value::Number(1.0),
-        "B.C" => types::Value::Number(2.0),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A.B" => types::Value::Number(1.0),
+            "B.C" => types::Value::Number(2.0),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => match string.as_str() {
+            "A1:A2" => types::Value::Number(1.0),
+            "B1:B2" => types::Value::Number(2.0),
+            _ => types::Value::Error(types::Error::Value),
+        }
     };
     assert_eq!(
         evaluate_formula_number_with_reference(&"=SUM({A.B,B.C})", Some(&data_function)),
@@ -698,10 +774,13 @@ fn it_evaluate_iterator_with_diffrent_number_of_entries() {
 fn it_evaluate_date() -> Result<(), ParseError> {
     let start: DateTime<FixedOffset> = DateTime::parse_from_rfc3339("2019-03-01T02:00:00.000Z")?;
     let end: DateTime<FixedOffset> = DateTime::parse_from_rfc3339("2019-08-30T02:00:00.000Z")?;
-    let data_function = |s: String| match s.as_str() {
-        "start" => types::Value::Date(start),
-        "end" => types::Value::Date(end),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "start" => types::Value::Date(start),
+            "end" => types::Value::Date(end),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        Reference::RangeReference(ref string) => types::Value::Error(types::Error::Value)
     };
     assert_eq!(
         evaluate_formula_number_with_reference(&"=DAYS(end, start)", Some(&data_function)),
@@ -778,9 +857,12 @@ fn it_evaluate_left_and_right_functions() {
 
 #[test]
 fn it_evaluates_blanks() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(1.0),
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(1.0),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -823,8 +905,11 @@ fn it_evaluates_blanks() {
 
 #[test]
 fn it_evaluates_blanks_only() {
-    let data_function = |s: String| match s.as_str() {
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -851,9 +936,12 @@ fn it_evaluates_blanks_only() {
 
 #[test]
 fn it_evaluates_blanks_when_blank_in_first_position() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(1.0),
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(1.0),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -900,8 +988,11 @@ fn it_evaluates_blanks_when_blank_in_first_position() {
 
 #[test]
 fn it_evaluates_blanks_in_abs_function() {
-    let data_function = |s: String| match s.as_str() {
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -919,9 +1010,12 @@ fn it_evaluates_blanks_in_days_function() {
     let start: DateTime<FixedOffset> = DateTime::parse_from_rfc3339("2019-02-01T02:00:00.000Z")
         .ok()
         .unwrap();
-    let data_function = |s: String| match s.as_str() {
-        "start" => types::Value::Date(start),
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "start" => types::Value::Date(start),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -940,8 +1034,11 @@ fn it_evaluates_blanks_in_days_function() {
 
 #[test]
 fn it_evaluates_blanks_with_operators() {
-    let data_function = |s: String| match s.as_str() {
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -988,9 +1085,12 @@ fn it_evaluates_blanks_with_operators() {
 
 #[test]
 fn it_evaluates_blanks_with_operators_and_reference() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(1.0),
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(1.0),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -1037,11 +1137,14 @@ fn it_evaluates_blanks_with_operators_and_reference() {
 
 #[test]
 fn it_evaluates_blanks_in_boolean_operations() {
-    let data_function = |s: String| match s.as_str() {
-        "T" => types::Value::Boolean(types::Boolean::True),
-        "B" => types::Value::Blank,
-        "F" => types::Value::Boolean(types::Boolean::False),
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "T" => types::Value::Boolean(types::Boolean::True),
+            "B" => types::Value::Blank,
+            "F" => types::Value::Boolean(types::Boolean::False),
+            _ => types::Value::Error(types::Error::Value),
+        },
+        _ => types::Value::Error(types::Error::Reference),
     };
     assert_eq!(
         evaluate_formula_boolean_with_reference(&"=AND(T,B)", Some(&data_function)),
@@ -1107,9 +1210,12 @@ fn it_evaluates_blanks_in_boolean_operations() {
 
 #[test]
 fn it_evaluates_blanks_in_comparison_operators() {
-    let data_function = |s: String| match s.as_str() {
-        "B" => types::Value::Blank,
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
+        _ => types::Value::Error(types::Error::Reference),
     };
     assert_eq!(
         evaluate_formula_string_with_reference(&"=B=B", Some(&data_function)),
@@ -1151,10 +1257,13 @@ fn it_evaluates_blanks_in_comparison_operators() {
 
 #[test]
 fn it_evaluates_blanks_in_comparison_operators_with_references() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(-2.0),
-        "B" => types::Value::Blank,
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(-2.0),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
+        _ => types::Value::Error(types::Error::Reference),
     };
     assert_eq!(
         evaluate_formula_string_with_reference(&"=A>=B", Some(&data_function)),
@@ -1176,10 +1285,13 @@ fn it_evaluates_blanks_in_comparison_operators_with_references() {
 
 #[test]
 fn it_evaluates_blanks_string_operations() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(-2.0),
-        "B" => types::Value::Blank,
-        _ => types::Value::Error(types::Error::Value),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(-2.0),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
+        _ => types::Value::Error(types::Error::Reference),
     };
     assert_eq!(
         evaluate_formula_string_with_reference(&"=\"Hello\"&B", Some(&data_function)),
@@ -1243,14 +1355,17 @@ fn it_evaluates_blank_constructors() {
 
 #[test]
 fn it_evaluates_blank_in_iterators() {
-    let data_function = |s: String| match s.as_str() {
-        "A" => types::Value::Number(100.0),
-        "Array" => types::Value::Iterator(vec![
-            types::Value::Number(100.0),
-            types::Value::Blank,
-            types::Value::Blank,
-        ]),
-        "B" => types::Value::Blank,
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "A" => types::Value::Number(100.0),
+            "Array" => types::Value::Iterator(vec![
+                types::Value::Number(100.0),
+                types::Value::Blank,
+                types::Value::Blank,
+            ]),
+            "B" => types::Value::Blank,
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -1305,10 +1420,13 @@ fn it_evaluates_blank_in_iterators() {
 
 #[test]
 fn it_evaluates_blank_with_iterators_in_boolean_operations() {
-    let data_function = |s: String| match s.as_str() {
-        "T" => types::Value::Boolean(types::Boolean::True),
-        "B" => types::Value::Blank,
-        "F" => types::Value::Boolean(types::Boolean::False),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "T" => types::Value::Boolean(types::Boolean::True),
+            "B" => types::Value::Blank,
+            "F" => types::Value::Boolean(types::Boolean::False),
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -1439,9 +1557,12 @@ fn it_evaluates_if_formulas() -> Result<(), ParseError> {
 
     let date1: DateTime<FixedOffset> = DateTime::parse_from_rfc3339("2019-03-01T02:00:00.000Z")?;
     let date2: DateTime<FixedOffset> = DateTime::parse_from_rfc3339("2019-08-30T02:00:00.000Z")?;
-    let data_function = |s: String| match s.as_str() {
-        "date1" => types::Value::Date(date1),
-        "date2" => types::Value::Date(date2),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "date1" => types::Value::Date(date1),
+            "date2" => types::Value::Date(date2),
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -1473,9 +1594,12 @@ fn it_evaluates_if_formulas() -> Result<(), ParseError> {
 
 #[test]
 fn it_evaluates_if_formulas_with_text() {
-    let data_function = |s: String| match s.as_str() {
-        "ReferenceKey" => types::Value::Text("100".to_string()),
-        "ReferenceName" => types::Value::Text("Test".to_string()),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            "ReferenceKey" => types::Value::Text("100".to_string()),
+            "ReferenceName" => types::Value::Text("Test".to_string()),
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(
@@ -1489,9 +1613,12 @@ fn it_evaluates_if_formulas_with_text() {
 
 #[test]
 fn it_evaluates_isblank_function() {
-    let data_function = |s: String| match s.as_str() {
-        // "ReferenceKey" => types::Value::Text("100".to_string()),
-        "ReferenceName" => types::Value::Text("Test".to_string()),
+    let data_function = |s: Reference| match s {
+        Reference::CellReference(ref string) => match string.as_str() {
+            // "ReferenceKey" => types::Value::Text("100".to_string()),
+            "ReferenceName" => types::Value::Text("Test".to_string()),
+            _ => types::Value::Error(types::Error::Value),
+        },
         _ => types::Value::Error(types::Error::Value),
     };
     assert_eq!(

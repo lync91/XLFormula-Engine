@@ -1,5 +1,6 @@
 use crate::parse_formula;
 use crate::types;
+use crate::types::Reference;
 use chrono::{DateTime, Duration, FixedOffset};
 type NoCustomFunction<'a> = &'a fn(String, Vec<f32>) -> types::Value;
 
@@ -738,7 +739,7 @@ fn convert_iterator_to_result_xor(
 
 fn get_values(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> (types::Value, types::Value) {
     (
         match exp.values.pop() {
@@ -754,7 +755,7 @@ fn get_values(
 
 fn get_value(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     match exp.values.pop() {
         Some(formula) => calculate_formula(formula, f),
@@ -764,7 +765,7 @@ fn get_value(
 
 fn get_date_values(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> (types::Value, types::Value) {
     (
         match exp.values.pop() {
@@ -780,7 +781,7 @@ fn get_date_values(
 
 fn get_number_and_string_values(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> (types::Value, types::Value) {
     if exp.values.len() == 1 {
         (
@@ -806,7 +807,7 @@ fn get_number_and_string_values(
 
 fn get_iff_values(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> (types::Value, types::Value, types::Value) {
     (
         match exp.values.pop() {
@@ -826,7 +827,7 @@ fn get_iff_values(
 
 fn calculate_iterator(
     mut vec: Vec<types::Formula>,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     let mut value_vec = Vec::new();
     while let Some(top) = vec.pop() {
@@ -836,8 +837,8 @@ fn calculate_iterator(
 }
 
 fn calculate_reference(
-    string: String,
-    f: Option<&impl Fn(String) -> types::Value>,
+    string: Reference,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     match f {
         Some(f) => match f(string) {
@@ -859,7 +860,7 @@ fn calculate_reference(
 
 fn calculate_bool(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
     f_bool: fn(bool1: bool, bool2: bool) -> bool,
 ) -> types::Value {
     let mut result = match exp.values.pop() {
@@ -875,7 +876,7 @@ fn calculate_bool(
 
 fn calculate_or(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
     f_bool: fn(bool1: bool, bool2: bool) -> bool,
 ) -> types::Value {
     let mut result = match exp.values.pop() {
@@ -891,7 +892,7 @@ fn calculate_or(
 
 fn calculate_xor(
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
     f_bool: fn(bool1: bool, bool2: bool) -> bool,
 ) -> types::Value {
     let mut result = match exp.values.pop() {
@@ -908,7 +909,7 @@ fn calculate_xor(
 fn calculate_collective_operator(
     mut collective_value: types::Value,
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
     f_collective: fn(num1: f32, num2: f32) -> f32,
 ) -> types::Value {
     while let Some(top) = exp.values.pop() {
@@ -921,7 +922,7 @@ fn calculate_collective_operator(
 fn calculate_collective_product_operator(
     mut collective_value: types::Value,
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
     f_collective: fn(num1: f32, num2: f32) -> f32,
 ) -> types::Value {
     while let Some(top) = exp.values.pop() {
@@ -940,7 +941,7 @@ fn calculate_collective_product_operator(
 fn calculate_average(
     mut collective_value: types::Value,
     mut exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
     f_collective: fn(num1: f32, num2: f32) -> f32,
 ) -> types::Value {
     let mut element_count = 0;
@@ -1064,7 +1065,7 @@ fn calculate_isblank(value: types::Value) -> types::Value {
 fn calculate_function(
     func: types::Function,
     exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     match func {
         types::Function::Abs => calculate_abs(get_value(exp, f)),
@@ -1092,7 +1093,7 @@ fn calculate_function(
 
 fn calculate_operation(
     exp: types::Expression,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     match exp.op {
         types::Operator::Plus => {
@@ -1204,12 +1205,13 @@ fn compare_dates(
 /// Takes an optional closure with the trait bound Fn(String) -> types::Value.
 pub fn calculate_formula(
     formula: types::Formula,
-    f: Option<&impl Fn(String) -> types::Value>,
+    f: Option<&impl Fn(Reference) -> types::Value>,
 ) -> types::Value {
     match formula {
         types::Formula::Operation(exp) => calculate_operation(exp, f),
         types::Formula::Value(val) => val,
-        types::Formula::Reference(string) => calculate_reference(string, f),
+        types::Formula::Reference(string) => calculate_reference(Reference::CellReference(string), f),
+        types::Formula::RangeReference(string) => calculate_reference(Reference::RangeReference(string), f),
         types::Formula::Iterator(vec) => calculate_iterator(vec, f),
     }
 }

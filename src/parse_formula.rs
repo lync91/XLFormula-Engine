@@ -101,6 +101,11 @@ fn build_formula_reference(pair: pest::iterators::Pair<Rule>) -> types::Formula 
     types::Formula::Reference(string)
 }
 
+fn build_formula_range_reference(pair: pest::iterators::Pair<Rule>) -> types::Formula {
+    let string = pair.as_str().parse::<String>().unwrap();
+    types::Formula::RangeReference(string)
+}
+
 fn build_formula_iterator(
     pair: pest::iterators::Pair<Rule>,
     f: Option<&impl Fn(String, Vec<f32>) -> types::Value>,
@@ -333,6 +338,7 @@ fn build_formula_with_climber(
             Rule::and => build_formula_collective_operator_and(Rule::and, pair, f),
             Rule::xor => build_formula_collective_operator(Rule::xor, pair, f),
             Rule::not => build_formula_unary_operator(Rule::not, pair, f),
+            Rule::range_reference => build_formula_range_reference(pair),
             Rule::reference => build_formula_reference(pair),
             Rule::iterator => build_formula_iterator(pair, f),
             Rule::negate => build_formula_unary_operator(Rule::negate, pair, f),
